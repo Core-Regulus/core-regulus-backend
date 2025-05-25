@@ -32,3 +32,13 @@ jobs:
           key: ${{secrets.SSH}}
           source: "./dist/*"
           target: "/home/ci/core-regulus/backend"
+      - name: Run remote SSH command
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH }}
+          port: 22
+          script: |
+            sudo /bin/systemctl restart core-regulus.service
+            sudo /bin/systemctl status core-regulus.service
