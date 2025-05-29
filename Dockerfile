@@ -10,13 +10,10 @@ RUN apk add --no-cache \
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-ENV PATH="/go/bin:${PATH}"
-RUN apt install protobuf-compiler
 RUN protoc --go_out=. --go-grpc_out=. service.proto
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -ldflags="-s -w" -o ./dist/core-regulus
 
-# Финальный образ
-FROM alpine:latest
+ENV PATH="/go/bin:${PATH}"
 
 WORKDIR /root/
 COPY --from=builder /app/app .
