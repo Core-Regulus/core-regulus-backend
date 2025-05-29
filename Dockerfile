@@ -18,7 +18,7 @@ ENV PATH="/go/bin:${PATH}"
 FROM alpine:latest
 
 WORKDIR /root/
-COPY --from=builder /app/dist .
+COPY --from=builder /app/dist /app/dist
 
 EXPOSE 5000
-CMD ["sh", "-c", "source .env && ./app"]
+ENTRYPOINT ["/app/dist/core-regulus"]
