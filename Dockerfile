@@ -18,7 +18,7 @@ ENV PATH="/go/bin:${PATH}"
 FROM alpine:latest
 
 WORKDIR /root/
-COPY --from=builder /app/app .
+COPY --from=builder /app/dist .
 
 EXPOSE 5000
 CMD ["sh", "-c", "source .env && ./app"]
