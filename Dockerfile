@@ -15,6 +15,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -ldflags="-s -w" -o ./dist
 
 ENV PATH="/go/bin:${PATH}"
 
+FROM alpine:latest
+
 WORKDIR /root/
 COPY --from=builder /app/app .
 
