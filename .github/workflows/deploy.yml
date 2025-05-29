@@ -15,14 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Installing Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-
-      - name: Build
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -ldflags="-s -w" -o ./dist/core-regulus
       - name: Deploy to server
         uses: appleboy/scp-action@master
         with:
@@ -30,15 +22,5 @@ jobs:
           username: ${{ secrets.USERNAME }}
           port: 22
           key: ${{secrets.SSH}}
-          source: "./dist/*"
+          source: "*"
           target: "/home/ci/core-regulus/backend"
-      - name: Restart service
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH }}
-          port: 22
-          script: |
-            sudo /bin/systemctl restart core-regulus.service
-            sudo /bin/systemctl status core-regulus.service
