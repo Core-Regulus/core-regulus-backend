@@ -24,3 +24,14 @@ jobs:
           key: ${{secrets.SSH}}
           source: "*"
           target: "/home/ci/core-regulus/backend"
+      - name: Docker Compose
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH }}
+          port: 22
+          script: |
+            cd /home/ci/core-regulus/backend
+            docker compose down
+            docker compose up --build -d
