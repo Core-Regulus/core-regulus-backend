@@ -1,34 +1,46 @@
 package main
 
 import (
-    "context"
-    "log"
-    "net"
-    "google.golang.org/grpc"
-		"google.golang.org/grpc/reflection"
-    pb "core-regulus/service.pb" // путь к сгенерированному пакету
+	"github.com/gofiber/fiber/v2"
 )
 
-type server struct {
-    pb.UnimplementedGreeterServer
-}
-
-func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-    return &pb.HelloReply{Message: "Hello, " + in.GetName()}, nil
+type User struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 func main() {
-    lis, err := net.Listen("tcp", ":5000")
-    if err != nil {
-        log.Fatalf("failed to listen: %v", err)
-    }
+	app := fiber.New()
 
-    s := grpc.NewServer()
-    pb.RegisterGreeterServer(s, &server{})
-		reflection.Register(s) 
+	// GET /
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello, Fiber!")
+	})
 
-    log.Println("gRPC server listening on :5000")
-    if err := s.Serve(lis); err != nil {
-        log.Fatalf("failed to serve: %v", err)
-    }
+	// GET /hello/:name
+	app.Get("/hello/:name", func(c *fiber.Ctx) error {
+		name := c.Params("name")
+		return c.JSON(fiber.Map{
+			"message": "Hello, " + name,
+		})
+	})
+
+	// POST /user
+	app.Post("/user", func(c *fiber.Ctx) error {
+		var user User
+
+		if err := c.BodyParser(&user); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Cannot parse JSON",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"message": "User created",
+			"user":    user,
+		})
+	})
+
+	// Запуск сервера
+	app.Listen(":5000")
 }
