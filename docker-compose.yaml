@@ -5,8 +5,8 @@ services:
       - "5000:5000"
     restart: unless-stopped
     networks:
-      - internal
+      - shared_net
 
 networks:
-  internal:
-    driver: bridge
+  shared_net:
+    external: true
