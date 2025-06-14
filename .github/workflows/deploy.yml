@@ -4,8 +4,6 @@ run-name: ${{ github.actor }} is deploying the project
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
   build:
@@ -13,6 +11,15 @@ jobs:
     environment: Personal Projects
 
     steps:
+      - name: Cleanup docker volumes
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH }}
+          port: 22
+          script: |
+            docker system prune -a --volumes -f
       - name: Checkout
         uses: actions/checkout@v4
       - name: Deploy to server
