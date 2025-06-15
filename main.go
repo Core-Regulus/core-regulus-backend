@@ -66,12 +66,12 @@ func main() {
 	cfg := db.SSHPostgresConfig{
 		SSHUser:     mustEnv("SSH_USER"),
 		PrivateKeyPEM: privateKey,
-		SSHHost:     "deploy.int-t.com",
+		SSHHost:     mustEnv("SSH_HOST"),
 		SSHPort:     sshPort,
-		DBUser:     "postgres",
-		DBPassword: "",
-		DBName:     "coreregulus",
-		DBHost:     "127.0.0.1", 
+		DBUser:     mustEnv("DB_USER"),
+		DBPassword: mustEnv("DB_PASSWORD"),
+		DBName:     mustEnv("DB_NAME"),
+		DBHost:     mustEnv("DB_HOST"), 
 		DBPort:     dbPort,
 	}
 
