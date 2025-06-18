@@ -2,27 +2,13 @@ package main
 
 import (
 	"core-regulus-backend/internal/db"
-	"fmt"
-	"log"
-	"os"
-	"strconv"
-	"strings"
-
+	"core-regulus-backend/internal/calendar"
 	"github.com/gofiber/fiber/v2"
-	"github.com/joho/godotenv"
 )
 
 type User struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
-}
-
-func mustEnv(key string) string {
-	val := os.Getenv(key)
-	if val == "" {
-		log.Fatalf("missing env var: %s", key)
-	}
-	return val
 }
 
 func main() {
@@ -57,36 +43,9 @@ func main() {
 		})
 	})
 	
-	_ = godotenv.Load(".env")
-	privateKey := strings.ReplaceAll(mustEnv("SSH_PRIVATE_KEY"), `\n`, "\n")
-
-	sshPort, _ := strconv.Atoi(mustEnv("SSH_PORT"))
-	dbPort, _ := strconv.Atoi(mustEnv("DB_PORT"))
-
-	cfg := db.SSHPostgresConfig{
-		SSHUser:     mustEnv("SSH_USER"),
-		PrivateKeyPEM: privateKey,
-		SSHHost:     mustEnv("SSH_HOST"),
-		SSHPort:     sshPort,
-		DBUser:     mustEnv("DB_USER"),
-		DBPassword: mustEnv("DB_PASSWORD"),
-		DBName:     mustEnv("DB_NAME"),
-		DBHost:     mustEnv("DB_HOST"), 
-		DBPort:     dbPort,
-	}
-
-	conn, err := db.ConnectViaSSH(cfg)
-	if err != nil {
-		log.Fatal("Ошибка:", err)
-	}
-	defer conn.Close()
-
-	var version string
-	err = conn.QueryRow("SELECT version()").Scan(&version)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("PostgreSQL version:", version)
-		
+	
+	db.Connect()
+	calendar.PrintFreeSlots()
+	
 	app.Listen(":5000")
 }

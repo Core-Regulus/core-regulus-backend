@@ -1,12 +1,13 @@
 package db
 
 import (
+	"core-regulus-backend/internal/config"
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net"
-	"time"
-
+	"time"	
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/ssh"
 )
@@ -24,29 +25,29 @@ type SSHPostgresConfig struct {
 	DBPort     int
 }
 
-func ConnectViaSSH(cfg SSHPostgresConfig) (*sql.DB, error) {
-	signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKeyPEM))
+func ConnectSSH(cfg *config.Config) {
+	signer, err := ssh.ParsePrivateKey([]byte(cfg.SSH.PrivateKey))
 	if err != nil {
-		return nil, fmt.Errorf("parse private key: %w", err)
+		log.Fatalf("parse private key: %v", err)
 	}
 
 	sshConfig := &ssh.ClientConfig{
-		User:            cfg.SSHUser,
+		User:            cfg.SSH.User,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         5 * time.Second,
 	}
 
-	sshAddr := fmt.Sprintf("%s:%d", cfg.SSHHost, cfg.SSHPort)
+	sshAddr := fmt.Sprintf("%s:%d", cfg.SSH.Host, cfg.SSH.Port)
 	sshClient, err := ssh.Dial("tcp", sshAddr, sshConfig)
 	if err != nil {
-		return nil, fmt.Errorf("SSH dial error: %w", err)
+		log.Fatalf("SSH dial error: %v", err)
 	}
 
-	remoteAddr := fmt.Sprintf("%s:%d", cfg.DBHost, cfg.DBPort)
-	localListener, err := net.Listen("tcp", "127.0.0.1:5433")
+	remoteAddr := fmt.Sprintf("%s:%d", cfg.Database.Host, cfg.Database.Port)
+	localListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Database.Host, cfg.Database.Port))
 	if err != nil {
-		return nil, fmt.Errorf("local port listen error: %w", err)
+		log.Fatalf("local port listen error: %v", err)
 	}
 
 	go func() {
@@ -69,14 +70,37 @@ func ConnectViaSSH(cfg SSHPostgresConfig) (*sql.DB, error) {
 		}
 	}()
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)	
+}
 
-	dsn := fmt.Sprintf("host=127.0.0.1 port=5433 user=%s password=%s dbname=%s sslmode=disable",
-		cfg.DBUser, cfg.DBPassword, cfg.DBName)
+func ConnectDB(cfg *config.Config) (*sql.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+					cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("PostgreSQL open error: %w", err)
 	}
 	return db, nil
+}
+
+func Connect() {
+	cfg := config.Get()	
+	var conn *sql.DB
+	var err error
+	if (cfg.IsLocal()) {
+		ConnectSSH(cfg)	
+	}
+	conn, err = ConnectDB(cfg)		
+	if err != nil {
+		log.Fatal("Error:", err)
+	}
+	defer conn.Close()
+
+	var version string
+	err = conn.QueryRow("SELECT version()").Scan(&version)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("PostgreSQL version:", version)
 }
