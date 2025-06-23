@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "CoreRegulusBackend",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

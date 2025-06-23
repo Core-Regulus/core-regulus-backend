@@ -3,15 +3,29 @@ package calendar
 import (
 	"context"
 	"core-regulus-backend/internal/config"
+	"core-regulus-backend/internal/db"
+	"encoding/json"
 	"fmt"
 	"log"
-	"time"	
-	"google.golang.org/api/calendar/v3"	
+	"time"
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/api/calendar/v3"
 )
 
+type Interval struct {
+	TimeStart string `json:"timeStart"`
+	TimeEnd   string `json:"timeEnd"`
+}
+
+type TimeSlot struct {
+	Date string     `json:"date"`
+	Slots []Interval `json:"slots"`
+}
+
 type FreeSlot struct {
-	Start time.Time
-	End   time.Time
+	TimeStart time.Time
+	TimeEnd time.Time
 }
 
 func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, slotLength time.Duration) ([]FreeSlot, error) {
@@ -27,7 +41,7 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 
 	resp, err := srv.Freebusy.Query(req).Context(ctx).Do()
 	if err != nil {
-		return nil, fmt.Errorf("freebusy request error: %w", err)
+		return nil, err
 	}
 	
 	busy := resp.Calendars[calendarID].Busy
@@ -40,8 +54,8 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 		if cursor.Before(start) {
 			for cursor.Add(slotLength).Before(start) || cursor.Add(slotLength).Equal(start) {
 				freeSlots = append(freeSlots, FreeSlot{
-					Start: cursor,
-					End:   cursor.Add(slotLength),
+					TimeStart: cursor,
+					TimeEnd:   cursor.Add(slotLength),
 				})
 				cursor = cursor.Add(slotLength)
 			}
@@ -51,11 +65,10 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 		}
 	}
 
-	// Добавим свободное время после последнего события
 	for cursor.Add(slotLength).Before(to) || cursor.Add(slotLength).Equal(to) {
 		freeSlots = append(freeSlots, FreeSlot{
-			Start: cursor,
-			End:   cursor.Add(slotLength),
+			TimeStart: cursor,
+			TimeEnd:   cursor.Add(slotLength),
 		})
 		cursor = cursor.Add(slotLength)
 	}
@@ -63,34 +76,6 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 	return freeSlots, nil
 }
 
-func NearestEvents(srv *calendar.Service, calendarID string) {
-	// Получаем ближайшие события
-	t := time.Now().Format(time.RFC3339)
-	events, err := srv.Events.List(calendarID).
-		ShowDeleted(false).
-		SingleEvents(true).
-		TimeMin(t).
-		MaxResults(10).
-		OrderBy("startTime").
-		Do()
-	if err != nil {
-		log.Fatalf("Ошибка при получении событий: %v", err)
-	}
-
-	fmt.Println("Ближайшие события:")
-	if len(events.Items) == 0 {
-		fmt.Println("Нет событий.")
-	} else {
-		for _, item := range events.Items {
-			start := item.Start.DateTime
-			if start == "" {
-				start = item.Start.Date
-			}
-			fmt.Printf("%s (%s)\n", item.Summary, start)
-		}
-	}
-
-}
 func PrintFreeSlots() {	
 	cfg := config.Get();		
 	from := time.Now()
@@ -104,8 +89,49 @@ func PrintFreeSlots() {
 
 	fmt.Println("Свободные слоты:")
 	for _, slot := range slots {
-		fmt.Printf("- %s до %s\n", slot.Start.Format("15:04"), slot.End.Format("15:04"))
+		fmt.Printf("- %s до %s\n", slot.TimeStart.Format("2006-01-02 15:04"), slot.TimeEnd.Format("2006-01-02 15:04"))
+	}
+}
+
+func getTimeSlots(pool *pgxpool.Pool) ([]TimeSlot, error) {
+	ctx := context.Background()
+	
+	var jsonData []byte
+
+	err := pool.QueryRow(ctx, "select service.get_free_slots(now(), now() + interval '1 month');").Scan(&jsonData)
+	if err != nil {
+		return nil, err
 	}
 
-	//calendar.NearestEvents(srv, calendarID)
+	var slots []TimeSlot
+	if err := json.Unmarshal(jsonData, &slots); err != nil {
+		return nil, err
+	}	
+	return slots, nil
+}
+
+func InitRoutes(app *fiber.App) {
+	app.Post("/calendar/days", func(c *fiber.Ctx) error {		
+		var slots FreeSlot
+
+		if err := c.BodyParser(&slots); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Cannot parse JSON",
+			})
+		}
+		
+		pool := db.Connect()
+		timeSlots, dberr := getTimeSlots(pool);
+		if (dberr != nil) {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": dberr.Error(),
+			})
+		}
+
+		PrintFreeSlots()
+
+		return c.JSON(fiber.Map{
+			"slots": timeSlots,
+		})
+	})
 }

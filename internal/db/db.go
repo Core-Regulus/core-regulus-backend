@@ -1,31 +1,31 @@
 package db
 
 import (
+	"context"
 	"core-regulus-backend/internal/config"
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"time"	
-	_ "github.com/lib/pq"
+	"sync"
+	"time"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/ssh"
 )
+var once sync.Once
+var poolOnce sync.Once
+var mainPool *pgxpool.Pool
 
-type SSHPostgresConfig struct {
-	SSHUser       string
-	SSHHost       string
-	SSHPort       int
-	PrivateKeyPEM string
-
-	DBUser     string
-	DBPassword string
-	DBName     string
-	DBHost     string
-	DBPort     int
+func checkSSH() {
+	once.Do(func() {
+		cfg := config.Get()	
+		if (cfg.IsLocal()) {
+			connectSSH(cfg)	
+		}		
+	})	
 }
 
-func ConnectSSH(cfg *config.Config) {
+func connectSSH(cfg *config.Config) {
 	signer, err := ssh.ParsePrivateKey([]byte(cfg.SSH.PrivateKey))
 	if err != nil {
 		log.Fatalf("parse private key: %v", err)
@@ -69,38 +69,28 @@ func ConnectSSH(cfg *config.Config) {
 			}()
 		}
 	}()
-
-	time.Sleep(300 * time.Millisecond)	
 }
 
-func ConnectDB(cfg *config.Config) (*sql.DB, error) {
+func connectDB(cfg *config.Config) (*pgxpool.Pool, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 					cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
 
-	db, err := sql.Open("postgres", dsn)
+	dbpool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		return nil, fmt.Errorf("PostgreSQL open error: %w", err)
+		log.Fatalf("Unable to create connection pool: %v", err)
 	}
-	return db, nil
+	return dbpool, err
 }
 
-func Connect() {
-	cfg := config.Get()	
-	var conn *sql.DB
-	var err error
-	if (cfg.IsLocal()) {
-		ConnectSSH(cfg)	
-	}
-	conn, err = ConnectDB(cfg)		
-	if err != nil {
-		log.Fatal("Error:", err)
-	}
-	defer conn.Close()
-
-	var version string
-	err = conn.QueryRow("SELECT version()").Scan(&version)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("PostgreSQL version:", version)
+func Connect() *pgxpool.Pool {
+	poolOnce.Do(func() {
+		cfg := config.Get()			
+		var err error
+		checkSSH()
+		mainPool, err = connectDB(cfg)		
+		if err != nil {
+			log.Fatal("Error:", err)
+		}		
+	})
+	return mainPool
 }
