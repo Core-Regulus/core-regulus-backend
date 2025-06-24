@@ -19,8 +19,6 @@ begin
 end;
 $function$;
 
-insert into config.config (code, value)
-values ('google.calendar.id', '"rabinmiller@gmail.com"');
 select config.get();
 
 

@@ -83,8 +83,7 @@ func connectSSH(cfg *config.Config) {
 func connectDB(cfg *config.Config) (*pgxpool.Pool, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 					cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
-
-	log.Println(dsn)
+	
 	dbpool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		log.Fatalf("Unable to create connection pool: %v", err)
