@@ -1,20 +1,27 @@
 package db
 
-import (
+import (	
 	"context"
 	"core-regulus-backend/internal/config"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/ssh"
 )
+
+type ConfigMap map[string]interface{}
+
 var once sync.Once
 var poolOnce sync.Once
+var configOnce sync.Once
 var mainPool *pgxpool.Pool
+var dbConfig ConfigMap
 
 func checkSSH() {
 	once.Do(func() {
@@ -24,6 +31,8 @@ func checkSSH() {
 		}		
 	})	
 }
+
+
 
 func connectSSH(cfg *config.Config) {
 	signer, err := ssh.ParsePrivateKey([]byte(cfg.SSH.PrivateKey))
@@ -93,4 +102,36 @@ func Connect() *pgxpool.Pool {
 		}		
 	})
 	return mainPool
+}
+
+func Config() *ConfigMap {
+	configOnce.Do(func() {
+		pool := Connect()
+		ctx := context.Background()
+		var jsonData []byte
+		err := pool.QueryRow(ctx, "select config.get()").Scan(&jsonData)
+		if err != nil {
+			log.Fatal("Query config error", err)
+		}		
+		if err := json.Unmarshal(jsonData, &dbConfig); err != nil {
+			log.Fatal(err)
+		}				
+	})
+	fmt.Printf("google calendar: %v\n", dbConfig["google.calendar"])
+	return &dbConfig
+}
+
+func (c ConfigMap) GetString(key string) (string, bool) {
+	if val, ok := c[key]; ok {
+		switch v := val.(type) {
+		case string:
+			return v, true
+		default:
+			jsonBytes, err := json.Marshal(v)
+			if err == nil {
+				return string(jsonBytes), true
+			}
+		}
+	}
+	return "", false
 }

@@ -1,17 +1,12 @@
 package config
 
-import (
-	"context"
+import (	
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/joho/godotenv"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
+	"github.com/joho/godotenv"	
 )
 
 type SSHConfig struct {
@@ -29,17 +24,10 @@ type DatabaseConfig struct {
 	Password string	
 }
 
-type CalendarConfig struct {
-	Id string
-	Service *calendar.Service	
-}
-
-
 type Config struct {
 	Environment string
 	SSH SSHConfig
 	Database DatabaseConfig
-	Calendar CalendarConfig
 }
 
 func (c Config) IsLocal() bool {
@@ -72,41 +60,13 @@ func loadDatabaseConfig() {
 	cfg.Database.Host = mustEnv("DB_HOST")
 }
 
-func loadCalendarConfig() {
-	cfg.Calendar.Id = mustEnv("CALENDAR_ID")
-		
-	var data []byte
-	var err error
-	if (cfg.IsLocal()) {
-		serviceAccountFile := "./.credentials/googleCalendar.json"
-		data, err = os.ReadFile(serviceAccountFile)
-		if err != nil {
-			log.Fatalf("account file read error: %v", err)
-		}
-	}
-	ctx := context.Background()
-	
-	var creds *google.Credentials
-	creds, err = google.CredentialsFromJSON(ctx, data, calendar.CalendarReadonlyScope)
-	if err != nil {
-		log.Fatalf("Can't load calendar account credentials: %v", err)
-	}
-
-	cfg.Calendar.Service, err = calendar.NewService(ctx, option.WithCredentials(creds))
-	if err != nil {
-		log.Fatalf("Can't initialize Calendar API client: %v", err)
-	}
-}
-
-
 func loadConfig() {
 	cfg.Environment = getEnvironment();
 	if (cfg.IsLocal()) {
 		godotenv.Load(".env")	
 		loadSSHConfig()		
 	}
-	loadDatabaseConfig()		
-	loadCalendarConfig()
+	loadDatabaseConfig()			
 }
 
 func Get() *Config {

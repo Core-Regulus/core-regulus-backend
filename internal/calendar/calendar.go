@@ -1,16 +1,19 @@
 package calendar
 
 import (
-	"context"
-	"core-regulus-backend/internal/config"
+	"context"	
 	"core-regulus-backend/internal/db"
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
+	"google.golang.org/api/option"
 )
 
 type Interval struct {
@@ -27,6 +30,10 @@ type FreeSlot struct {
 	TimeStart time.Time
 	TimeEnd time.Time
 }
+
+var calendarService *calendar.Service
+var calendarId string
+var calendarOnce sync.Once
 
 func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, slotLength time.Duration) ([]FreeSlot, error) {
 	ctx := context.Background()
@@ -77,12 +84,13 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 }
 
 func PrintFreeSlots() {	
-	cfg := config.Get();		
+	calendarService, calendarId := getService()
+	
 	from := time.Now()
 	to := from.Add(8 * time.Hour)
 	slotLen := 30 * time.Minute
 
-	slots, err := GetFreeSlots(cfg.Calendar.Service, cfg.Calendar.Id, from, to, slotLen)
+	slots, err := GetFreeSlots(calendarService, calendarId, from, to, slotLen)
 	if err != nil {
 		log.Fatalf("Ошибка получения свободных слотов: %v", err)
 	}
@@ -110,6 +118,37 @@ func getTimeSlots(pool *pgxpool.Pool) ([]TimeSlot, error) {
 	return slots, nil
 }
 
+func getService() (*calendar.Service, string) {
+	calendarOnce.Do(func () {
+		dbConfig := *db.Config()
+		var ok bool
+		calendarId, ok = dbConfig.GetString("googleCalendarId")
+		if (!ok) {
+			log.Fatal("googleCalendarId is not in config.config table")
+		}
+			
+		var serviceData string
+		serviceData, ok = dbConfig.GetString("googleCalendar")
+		if (!ok) {
+			log.Fatal("googleCalendar is not in config.config table")
+		}
+		
+	
+		var creds *google.Credentials
+		ctx := context.Background()
+		creds, err := google.CredentialsFromJSON(ctx, []byte(serviceData), calendar.CalendarReadonlyScope)
+		if err != nil {
+			log.Fatalf("Can't load calendar account credentials: %v", err)
+		}
+	
+		calendarService, err = calendar.NewService(ctx, option.WithCredentials(creds))
+		if err != nil {
+			log.Fatalf("Can't initialize Calendar API client: %v", err)
+		}
+	})
+	return calendarService, calendarId	
+}
+
 func InitRoutes(app *fiber.App) {
 	app.Post("/calendar/days", func(c *fiber.Ctx) error {		
 		var slots FreeSlot
@@ -121,7 +160,7 @@ func InitRoutes(app *fiber.App) {
 		}
 		
 		pool := db.Connect()
-		timeSlots, dberr := getTimeSlots(pool);
+		timeSlots, dberr := getTimeSlots(pool)
 		if (dberr != nil) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": dberr.Error(),
