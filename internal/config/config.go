@@ -38,7 +38,7 @@ var cfg Config
 var once sync.Once
 
 func getEnvironment() string {
-	env := os.Getenv("environment")
+	env := os.Getenv("ENVIRONMENT")
 	if (env != "") {
 		return env
 	}

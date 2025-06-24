@@ -7,6 +7,7 @@ services:
     networks:
       - shared_net
     environment:
+      - ENVIRONMENT=production
       - DB_HOST
       - DB_PORT
       - DB_NAME
