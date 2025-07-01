@@ -35,6 +35,11 @@ type FreeSlot struct {
 	TimeEnd time.Time
 }
 
+type CalendarDaysInput struct {
+	DateEnd time.Time `json:"dateEnd"`
+}
+
+
 var calendarService *calendar.Service
 var calendarId string
 var calendarOnce sync.Once
@@ -105,12 +110,13 @@ func PrintFreeSlots() {
 	}
 }
 
-func getTimeSlots(pool *pgxpool.Pool) ([]TimeSlot, error) {
+func getTimeSlots(pool *pgxpool.Pool, interval CalendarDaysInput) ([]TimeSlot, error) {
 	ctx := context.Background()
 	
 	var jsonData []byte
-
-	err := pool.QueryRow(ctx, "select service.get_free_slots(now(), now() + interval '1 month');").Scan(&jsonData)
+	
+	query := "select service.get_free_slots('now()', $1)"
+	err := pool.QueryRow(ctx, query, interval.DateEnd).Scan(&jsonData)
 	if err != nil {
 		return nil, err
 	}
@@ -155,16 +161,15 @@ func getService() (*calendar.Service, string) {
 
 func InitRoutes(app *fiber.App) {
 	app.Post("/calendar/days", func(c *fiber.Ctx) error {		
-		var slots FreeSlot
-
-		if err := c.BodyParser(&slots); err != nil {
+		var interval CalendarDaysInput
+		if err := c.BodyParser(&interval); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Cannot parse JSON",
 			})
 		}
 		
 		pool := db.Connect()
-		timeSlots, dberr := getTimeSlots(pool)
+		timeSlots, dberr := getTimeSlots(pool, interval)
 		if (dberr != nil) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": dberr.Error(),

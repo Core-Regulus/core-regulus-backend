@@ -6,6 +6,12 @@ meta {
 
 post {
   url: {{host}}/calendar/days
-  body: none
+  body: json
   auth: inherit
+}
+
+body:json {
+  {
+    "dateEnd": "2025-07-31T00:00:00Z"
+  }
 }
