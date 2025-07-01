@@ -19,14 +19,6 @@ begin
 end;
 $function$;
 
-select config.get();
-
-
-
-
-
-
--- DROP FUNCTION service.get_days(timestamptz, timestamptz);
 
 CREATE OR REPLACE FUNCTION service.get_days(from_date timestamp with time zone, to_date timestamp with time zone)
  RETURNS TABLE(date date, day_of_week service.day_of_week)
@@ -43,8 +35,6 @@ end;
 $function$
 ;
 
-
--- DROP FUNCTION service.get_free_slots(timestamptz, timestamptz);
 
 CREATE OR REPLACE FUNCTION service.get_free_slots(date_from timestamp with time zone, date_to timestamp with time zone)
  RETURNS json
@@ -83,8 +73,12 @@ begin
 		group by date
 	)
 	into res;
-	return res;
-
+	return coalesce(res, '[]'::json);
 end;
 $function$
 ;
+
+
+select service.get_free_slots('2025-06-01', '2025-06-30');
+
+

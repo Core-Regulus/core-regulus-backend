@@ -36,6 +36,7 @@ type FreeSlot struct {
 }
 
 type CalendarDaysInput struct {
+	DateStart time.Time `json:"dateStart"`
 	DateEnd time.Time `json:"dateEnd"`
 }
 
@@ -115,8 +116,8 @@ func getTimeSlots(pool *pgxpool.Pool, interval CalendarDaysInput) ([]TimeSlot, e
 	
 	var jsonData []byte
 	
-	query := "select service.get_free_slots('now()', $1)"
-	err := pool.QueryRow(ctx, query, interval.DateEnd).Scan(&jsonData)
+	query := "select service.get_free_slots($1, $2)"
+	err := pool.QueryRow(ctx, query, interval.DateStart, interval.DateEnd).Scan(&jsonData)
 	if err != nil {
 		return nil, err
 	}
