@@ -10,7 +10,7 @@ import (
 func main() {
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
+		AllowOrigins: "https://core-regulus.com, http://localhost:9001",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "POST, OPTIONS",
 	}))
