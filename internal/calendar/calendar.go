@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
-	"google.golang.org/api/option"
+	"google.golang.org/api/option"	
 )
 
 type Interval struct {
@@ -24,6 +24,10 @@ type Interval struct {
 type TimeSlot struct {
 	Date string     `json:"date"`
 	Slots []Interval `json:"slots"`
+}
+
+type DaysResponse struct {
+	Days []TimeSlot `json:"days"`
 }
 
 type FreeSlot struct {
@@ -167,10 +171,10 @@ func InitRoutes(app *fiber.App) {
 			})
 		}
 
-		PrintFreeSlots()
+		response := DaysResponse{
+			Days: timeSlots,
+		}
 
-		return c.JSON(fiber.Map{
-			"slots": timeSlots,
-		})
+		return c.JSON(response)
 	})
 }
