@@ -3,8 +3,7 @@ package calendar
 import (
 	"context"
 	"core-regulus-backend/internal/db"
-	"encoding/json"
-	"fmt"
+	"encoding/json"	
 	"log"
 	"sync"
 	"time"
@@ -90,24 +89,6 @@ func GetFreeSlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 	}
 
 	return freeSlots, nil
-}
-
-func PrintFreeSlots() {
-	calendarService, calendarId := getService()
-
-	from := time.Now()
-	to := from.Add(8 * time.Hour)
-	slotLen := 30 * time.Minute
-
-	slots, err := GetFreeSlots(calendarService, calendarId, from, to, slotLen)
-	if err != nil {
-		log.Fatalf("Ошибка получения свободных слотов: %v", err)
-	}
-
-	fmt.Println("Свободные слоты:")
-	for _, slot := range slots {
-		fmt.Printf("- %s до %s\n", slot.TimeStart.Format("2006-01-02 15:04"), slot.TimeEnd.Format("2006-01-02 15:04"))
-	}
 }
 
 func getTimeSlots(pool *pgxpool.Pool, from, to time.Time) ([]TimeSlot, error) {
