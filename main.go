@@ -1,8 +1,10 @@
 package main
 
 import (
-	"core-regulus-backend/internal/db"
 	"core-regulus-backend/internal/calendar"
+	"core-regulus-backend/internal/db"
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
@@ -17,5 +19,5 @@ func main() {
 	db.Connect()
 	calendar.InitRoutes(app)
 
-	app.Listen(":5000")
+	log.Fatal(app.Listen(":5000"))
 }
