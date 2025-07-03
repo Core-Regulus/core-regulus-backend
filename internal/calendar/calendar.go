@@ -3,7 +3,8 @@ package calendar
 import (
 	"context"
 	"core-regulus-backend/internal/db"
-	"encoding/json"	
+	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -259,6 +260,50 @@ func checkTimeSlot(busySlots []FreeSlot, start, end time.Time) bool {
 	return false
 }
 
+type NewEventRequest struct {
+	Time        string `json:"time"`
+	Event       string `json:"eventName"`
+	Email       string `json:"guestEmail"`
+	Name        string `json:"guestName"`
+	Description string `json:"guestDescription,omitempty"`
+}
+
+func postCalendarEventHandler(c *fiber.Ctx) error {
+	var eventRequest NewEventRequest
+
+	if err := c.BodyParser(&eventRequest); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	srv, calendarId := getService()
+	var event calendar.Event
+	attendee := calendar.EventAttendee{
+		Email:       eventRequest.Email,
+		DisplayName: eventRequest.Name,
+	}
+	event.Attendees = append(event.Attendees, &attendee)
+	event.OriginalStartTime = &calendar.EventDateTime{
+		DateTime: eventRequest.Time,
+	}
+	eventService := calendar.NewEventsService(srv)
+	res := eventService.Insert(calendarId, &event)
+	res.SendNotifications(true)
+	evnt, err := res.Do()
+	if err != nil {
+		log.Printf("%#v", err)
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error":  "Unable to set up meeting",
+			"reason": err.Error(),
+		})
+	}
+	fmt.Printf("%#v", evnt)
+
+	return c.JSON(evnt)
+}
+
 func InitRoutes(app *fiber.App) {
 	app.Post("/calendar/days", postCalendarDaysHandler)
+	app.Post("/calendar/event", postCalendarEventHandler)
 }
