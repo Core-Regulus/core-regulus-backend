@@ -1,7 +1,7 @@
 meta {
-  name: getAvailableDays
+  name: scheduleEvent
   type: http
-  seq: 1
+  seq: 3
 }
 
 post {
@@ -12,7 +12,7 @@ post {
 
 body:json {
   {
-    "dateStart": "2025-07-01",
-    "dateEnd": "2025-07-31"
+    "dateStart": "2025-06-01T00:00:00Z",
+    "dateEnd": "2025-06-30T00:00:00Z"
   }
 }

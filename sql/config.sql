@@ -80,5 +80,11 @@ $function$
 
 
 select service.get_free_slots('2025-06-01', '2025-06-30');
+select * from service.meeting_time_slots; 
+
+select * from config.config;
+
+update service.meeting_time_slots set duration = '45 minutes';
+
 
 

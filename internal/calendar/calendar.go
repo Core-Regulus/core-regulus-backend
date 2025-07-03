@@ -4,7 +4,6 @@ import (
 	"context"
 	"core-regulus-backend/internal/db"
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
@@ -36,8 +36,8 @@ type FreeSlot struct {
 }
 
 type CalendarDaysInput struct {
-	DateStart time.Time `json:"dateStart"`
-	DateEnd   time.Time `json:"dateEnd"`
+	DateStart string `json:"dateStart"`
+	DateEnd   string `json:"dateEnd"`
 }
 
 var calendarService *calendar.Service
@@ -135,14 +135,18 @@ func getService() (*calendar.Service, string) {
 			log.Fatal("googleCalendar is not in config.config table")
 		}
 
-		var creds *google.Credentials
+		var creds *jwt.Config
 		ctx := context.Background()
-		creds, err := google.CredentialsFromJSON(ctx, []byte(serviceData), calendar.CalendarReadonlyScope)
+
+		creds, err := google.JWTConfigFromJSON([]byte(serviceData), calendar.CalendarScope)
 		if err != nil {
-			log.Fatalf("Can't load calendar account credentials: %v", err)
+			log.Fatalf("Can't parse JWT config: %v", err)
 		}
 
-		calendarService, err = calendar.NewService(ctx, option.WithCredentials(creds))
+		creds.Subject = calendarId
+		client := creds.Client(ctx)
+
+		calendarService, err = calendar.NewService(ctx, option.WithHTTPClient(client))
 		if err != nil {
 			log.Fatalf("Can't initialize Calendar API client: %v", err)
 		}
@@ -150,7 +154,7 @@ func getService() (*calendar.Service, string) {
 	return calendarService, calendarId
 }
 
-func GetBusySlots(srv *calendar.Service, calendarID string, from, to time.Time, slotLength time.Duration) ([]FreeSlot, error) {
+func GetBusySlots(srv *calendar.Service, calendarID string, from, to time.Time) ([]FreeSlot, error) {
 	ctx := context.Background()
 
 	req := &calendar.FreeBusyRequest{
@@ -182,7 +186,7 @@ func GetBusySlots(srv *calendar.Service, calendarID string, from, to time.Time, 
 }
 
 func postCalendarDaysHandler(c *fiber.Ctx) error {
-	var tInterval Interval
+	var tInterval CalendarDaysInput
 
 	if err := c.BodyParser(&tInterval); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -191,14 +195,14 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 	}
 
 	calendar, calendarId := getService()
-	from, err := time.Parse("2006-01-02", tInterval.TimeStart)
+	from, err := time.Parse("2006-01-02", tInterval.DateStart)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse timeStart",
 		})
 	}
 
-	to, err := time.Parse("2006-01-02", tInterval.TimeEnd)
+	to, err := time.Parse("2006-01-02", tInterval.DateEnd)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse timeEnd",
@@ -206,7 +210,7 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 	}
 	pool := db.Connect()
 
-	timeSlots, err := GetBusySlots(calendar, calendarId, from, to, 30*time.Minute)
+	timeSlots, err := GetBusySlots(calendar, calendarId, from, to)
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error": "Cannot get busy slots from calendar",
@@ -278,29 +282,47 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 	}
 
 	srv, calendarId := getService()
-	var event calendar.Event
-	attendee := calendar.EventAttendee{
-		Email:       eventRequest.Email,
-		DisplayName: eventRequest.Name,
-	}
-	event.Attendees = append(event.Attendees, &attendee)
-	event.OriginalStartTime = &calendar.EventDateTime{
-		DateTime: eventRequest.Time,
-	}
-	eventService := calendar.NewEventsService(srv)
-	res := eventService.Insert(calendarId, &event)
-	res.SendNotifications(true)
-	evnt, err := res.Do()
+	
+	startTime, err := time.Parse(time.RFC3339, eventRequest.Time)
 	if err != nil {
-		log.Printf("%#v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid time format",
+		})
+	}
+
+	endTime := startTime.Add(45 * time.Minute)
+
+	event := &calendar.Event{
+		Summary:     eventRequest.Name,
+		Description: eventRequest.Description,
+		Start: &calendar.EventDateTime{
+			DateTime: startTime.Format(time.RFC3339),
+			TimeZone: "Europe/Belgrade",
+		},
+		End: &calendar.EventDateTime{
+			DateTime: endTime.Format(time.RFC3339),
+			TimeZone: "Europe/Belgrade",
+		},
+		Attendees: []*calendar.EventAttendee{
+			{
+				Email:       eventRequest.Email,
+				DisplayName: eventRequest.Name,
+			},
+		},
+	}
+
+	res := calendar.NewEventsService(srv).Insert(calendarId, event)
+	res.SendNotifications(true)
+	createdEvent, err := res.Do()
+	if err != nil {
+		log.Printf("Google API error: %#v", err)
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error":  "Unable to set up meeting",
 			"reason": err.Error(),
 		})
 	}
-	fmt.Printf("%#v", evnt)
 
-	return c.JSON(evnt)
+	return c.JSON(createdEvent)
 }
 
 func InitRoutes(app *fiber.App) {
