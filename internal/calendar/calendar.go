@@ -4,6 +4,7 @@ import (
 	"context"
 	"core-regulus-backend/internal/db"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -38,6 +39,13 @@ type FreeSlot struct {
 type CalendarDaysInput struct {
 	DateStart string `json:"dateStart"`
 	DateEnd   string `json:"dateEnd"`
+}
+
+type TimeSlotRecord struct {
+	Id				string `json:"id"`
+	DayOfWeek string `json:"dayOfWeek"`
+	TimeStart string `json:"timeStart"`
+	Duration  time.Duration `json:"duration"`
 }
 
 var calendarService *calendar.Service
@@ -118,6 +126,27 @@ func getTimeSlots(pool *pgxpool.Pool, from, to time.Time) ([]TimeSlot, error) {
 		}
 	}
 	return result, nil
+}
+
+func getTargetSlot(pool *pgxpool.Pool, from time.Time) (*TimeSlotRecord, error) {
+	ctx := context.Background()
+
+	var jsonData []byte
+
+	err := pool.QueryRow(ctx, "select service.get_target_slot($1)", from).Scan(&jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	if (len(jsonData) == 0) {
+		return nil, fmt.Errorf("slot is not found at %s", from.Format(time.RFC3339))
+	}
+
+	var slot TimeSlotRecord
+	if err := json.Unmarshal(jsonData, &slot); err != nil {
+		return nil, err
+	}
+	return &slot, nil
 }
 
 func getService() (*calendar.Service, string) {
@@ -208,8 +237,7 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 			"error": "Cannot parse timeEnd",
 		})
 	}
-	pool := db.Connect()
-
+	
 	timeSlots, err := GetBusySlots(calendar, calendarId, from, to)
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -217,6 +245,7 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 		})
 	}
 
+	pool := db.Connect()
 	timetable, dberr := getTimeSlots(pool, from, to)
 	if dberr != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -289,8 +318,20 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			"error": "Invalid time format",
 		})
 	}
-
-	endTime := startTime.Add(45 * time.Minute)
+	pool := db.Connect()
+	tsr, err := getTargetSlot(pool, startTime)
+	if (tsr == nil) {
+		if (err != nil) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Time Slot Error",
+				"reason": err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Time Slot is not found",			
+		})
+	}
+	endTime := startTime.Add(tsr.Duration * time.Minute)
 
 	event := &calendar.Event{
 		Summary:     eventRequest.Name,

@@ -78,13 +78,29 @@ end;
 $function$
 ;
 
+CREATE OR REPLACE FUNCTION service.get_target_slot(date_from timestamp with time zone)
+ RETURNS json
+ LANGUAGE plpgsql
+AS $function$
+declare
+	l_res json;
+begin  
+	select json_build_object(
+					'id', id, 
+					'dayOfWeek', day_of_week,
+					'timeStart', time_start, 
+					'duration', extract(epoch from duration)::int
+				 )
+	from service.meeting_time_slots mts
+	into l_res
+	where day_of_week = lower(trim(to_char(date_from, 'FMDay')))::service.day_of_week and
+				(date_from::time)::interval = mts.time_start and
+				date_from > now()
+	limit 1;
+	return l_res;
+end;
+$function$;
+ 
 
-select service.get_free_slots('2025-06-01', '2025-06-30');
-select * from service.meeting_time_slots; 
-
-select * from config.config;
-
-update service.meeting_time_slots set duration = '45 minutes';
-
-
+select service.get_target_slot('2025-07-07T09:00:00Z')
 

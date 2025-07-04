@@ -5,14 +5,17 @@ meta {
 }
 
 post {
-  url: {{host}}/calendar/days
+  url: {{host}}/calendar/event
   body: json
   auth: inherit
 }
 
 body:json {
   {
-    "dateStart": "2025-06-01T00:00:00Z",
-    "dateEnd": "2025-06-30T00:00:00Z"
+    "time": "2025-07-07T09:00:00Z",
+    "eventName": "test Event",
+    "guestEmail": "nemesisv@mail.ru",
+    "guestName": "Vladimir",
+    "guestDescription": "Test event for testing puprose"
   }
 }
