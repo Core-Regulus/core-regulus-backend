@@ -89,10 +89,15 @@ begin
 					'id', id, 
 					'dayOfWeek', day_of_week,
 					'timeStart', time_start, 
-					'duration', extract(epoch from duration)::int
+					'duration', extract(epoch from duration)::int,
+					'attendees', ma.attendees
 				 )
 	from service.meeting_time_slots mts
 	into l_res
+	inner join (
+		select json_agg(json_build_object('name', name, 'email', email)) as attendees
+		from service.meeting_attendees
+	) ma on true
 	where day_of_week = lower(trim(to_char(date_from, 'FMDay')))::service.day_of_week and
 				(date_from::time)::interval = mts.time_start and
 				date_from > now()
@@ -102,9 +107,23 @@ end;
 $function$;
  
 
-select service.get_target_slot('2025-07-07T09:00:00Z')
+select * from config.config;
 
+insert into config.config (code, value)
+values ('googleCalendarAttendee', '[{ "name": "Vladimir Aseev", email}]')
 
+create table service.meeting_attendee (
+	name text,
+	email text,
+	primary key (name, email)
+);
 
+insert into service.meeting_attendee (name, email)
+values ('Vladimir Aseev', 'rabinmiller@gmail.com');
 
+select json_agg(json_build_object('name', name, 'email', email))
+			 from service.meeting_attendees
 
+select service.get_target_slot('2025-07-09T08:00:00Z')
+
+			 

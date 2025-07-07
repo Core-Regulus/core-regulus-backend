@@ -4,6 +4,7 @@ import (
 	"context"
 	"core-regulus-backend/internal/db"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -47,7 +48,14 @@ type TimeSlotRecord struct {
 	DayOfWeek string        `json:"dayOfWeek"`
 	TimeStart string        `json:"timeStart"`
 	Duration  time.Duration `json:"duration"`
+	Attendees	[]Attendee		`json:"attendees"`
 }
+
+type Attendee struct {
+	Name      string        `json:"name"`
+	Email			string				`json:"email"`
+}
+
 
 var calendarService *calendar.Service
 var calendarId string
@@ -302,6 +310,26 @@ type NewEventRequest struct {
 	Description string `json:"guestDescription,omitempty"`
 }
 
+func CalendarConflictCheck(startTime time.Time, endTime time.Time) error {
+	srv, calendarId := getService()	
+	conflictCheck, err := calendar.NewEventsService(srv).List(calendarId).
+	TimeMin(startTime.Format(time.RFC3339)).
+	TimeMax(endTime.Format(time.RFC3339)).
+	SingleEvents(true).
+	OrderBy("startTime").
+	Do()
+
+	if err != nil {
+		return err;
+	}
+	
+	if len(conflictCheck.Items) > 0 {
+		return errors.New("slot is busy; please choose another slot")
+	}
+
+	return nil
+}
+
 func postCalendarEventHandler(c *fiber.Ctx) error {
 	var eventRequest NewEventRequest
 
@@ -332,7 +360,31 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			"error": "Time Slot is not found",
 		})
 	}
+	
 	endTime := startTime.Add(tsr.Duration * time.Second)
+	err = CalendarConflictCheck(startTime, endTime)
+	if (err != nil) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":  "Slot is busy",
+			"reason": err.Error(),
+		})
+	}
+
+	var eventAttendees []*calendar.EventAttendee
+
+	eventAttendees = append(eventAttendees,
+		&calendar.EventAttendee{
+			Email:       eventRequest.Email,
+			DisplayName: eventRequest.Name,
+		},
+	)
+		
+	for _, a := range tsr.Attendees {
+		eventAttendees = append(eventAttendees, &calendar.EventAttendee{
+			Email:       a.Email,
+			DisplayName: a.Name,
+		})
+	}
 
 	event := &calendar.Event{
 		Summary:     eventRequest.Name,
@@ -346,16 +398,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			DateTime: endTime.Format(time.RFC3339),
 			TimeZone: "Europe/Belgrade",
 		},
-		Attendees: []*calendar.EventAttendee{			
-			{
-				Email:       "rabinmiller@gmail.com",
-				DisplayName: eventRequest.Event,
-			},
-			{
-				Email:       eventRequest.Email,
-				DisplayName: eventRequest.Name,
-			},
-		},
+		Attendees: eventAttendees,	
 		ConferenceData: &calendar.ConferenceData{
 			CreateRequest: &calendar.CreateConferenceRequest{
 				RequestId: uuid.New().String(),
