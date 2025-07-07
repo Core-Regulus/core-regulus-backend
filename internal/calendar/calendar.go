@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
@@ -42,9 +43,9 @@ type CalendarDaysInput struct {
 }
 
 type TimeSlotRecord struct {
-	Id				string `json:"id"`
-	DayOfWeek string `json:"dayOfWeek"`
-	TimeStart string `json:"timeStart"`
+	Id        string        `json:"id"`
+	DayOfWeek string        `json:"dayOfWeek"`
+	TimeStart string        `json:"timeStart"`
 	Duration  time.Duration `json:"duration"`
 }
 
@@ -138,7 +139,7 @@ func getTargetSlot(pool *pgxpool.Pool, from time.Time) (*TimeSlotRecord, error) 
 		return nil, err
 	}
 
-	if (len(jsonData) == 0) {
+	if len(jsonData) == 0 {
 		return nil, fmt.Errorf("slot is not found at %s", from.Format(time.RFC3339))
 	}
 
@@ -237,7 +238,7 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 			"error": "Cannot parse timeEnd",
 		})
 	}
-	
+
 	timeSlots, err := GetBusySlots(calendar, calendarId, from, to)
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -311,7 +312,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 	}
 
 	srv, calendarId := getService()
-	
+
 	startTime, err := time.Parse(time.RFC3339, eventRequest.Time)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -320,15 +321,15 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 	}
 	pool := db.Connect()
 	tsr, err := getTargetSlot(pool, startTime)
-	if (tsr == nil) {
-		if (err != nil) {
+	if tsr == nil {
+		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Time Slot Error",
+				"error":  "Time Slot Error",
 				"reason": err.Error(),
 			})
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Time Slot is not found",			
+			"error": "Time Slot is not found",
 		})
 	}
 	endTime := startTime.Add(tsr.Duration * time.Minute)
@@ -350,10 +351,14 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 				DisplayName: eventRequest.Name,
 			},
 		},
+		ConferenceData: &calendar.ConferenceData{
+			CreateRequest: &calendar.CreateConferenceRequest{
+				RequestId: uuid.New().String(),
+			},
+		},
 	}
 
-	res := calendar.NewEventsService(srv).Insert(calendarId, event)
-	res.SendNotifications(true)
+	res := calendar.NewEventsService(srv).Insert(calendarId, event).SendNotifications(true).ConferenceDataVersion(1)
 	createdEvent, err := res.Do()
 	if err != nil {
 		log.Printf("Google API error: %#v", err)
