@@ -1,0 +1,18 @@
+meta {
+  name: clickhouse test
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}/calendar/days
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "dateStart": "2025-07-01",
+    "dateEnd": "2025-07-31"
+  }
+}

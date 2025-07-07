@@ -116,8 +116,7 @@ func Config() *ConfigMap {
 		if err := json.Unmarshal(jsonData, &dbConfig); err != nil {
 			log.Fatal(err)
 		}				
-	})
-	fmt.Printf("google calendar: %v\n", dbConfig["google.calendar"])
+	})	
 	return &dbConfig
 }
 

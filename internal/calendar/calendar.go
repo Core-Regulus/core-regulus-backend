@@ -337,6 +337,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 	event := &calendar.Event{
 		Summary:     eventRequest.Name,
 		Description: eventRequest.Description,
+		Status:      "tentative",
 		Start: &calendar.EventDateTime{
 			DateTime: startTime.Format(time.RFC3339),
 			TimeZone: "Europe/Belgrade",
@@ -345,7 +346,11 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			DateTime: endTime.Format(time.RFC3339),
 			TimeZone: "Europe/Belgrade",
 		},
-		Attendees: []*calendar.EventAttendee{
+		Attendees: []*calendar.EventAttendee{			
+			{
+				Email:       "rabinmiller@gmail.com",
+				DisplayName: eventRequest.Event,
+			},
 			{
 				Email:       eventRequest.Email,
 				DisplayName: eventRequest.Name,
@@ -358,7 +363,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 		},
 	}
 
-	res := calendar.NewEventsService(srv).Insert(calendarId, event).SendNotifications(true).ConferenceDataVersion(1)
+	res := calendar.NewEventsService(srv).Insert(calendarId, event).SendUpdates("all").ConferenceDataVersion(1)
 	createdEvent, err := res.Do()
 	if err != nil {
 		log.Printf("Google API error: %#v", err)
