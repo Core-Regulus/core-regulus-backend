@@ -332,7 +332,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			"error": "Time Slot is not found",
 		})
 	}
-	endTime := startTime.Add(tsr.Duration * time.Minute)
+	endTime := startTime.Add(tsr.Duration * time.Second)
 
 	event := &calendar.Event{
 		Summary:     eventRequest.Name,
