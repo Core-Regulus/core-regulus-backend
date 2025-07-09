@@ -3,3 +3,5 @@ dist
 .lily
 .timofey
 .credentials
+.DS_Store
+__debug_*
