@@ -48,14 +48,13 @@ type TimeSlotRecord struct {
 	DayOfWeek string        `json:"dayOfWeek"`
 	TimeStart string        `json:"timeStart"`
 	Duration  time.Duration `json:"duration"`
-	Attendees	[]Attendee		`json:"attendees"`
+	Attendees []Attendee    `json:"attendees"`
 }
 
 type Attendee struct {
-	Name      string        `json:"name"`
-	Email			string				`json:"email"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
-
 
 var calendarService *calendar.Service
 var calendarId string
@@ -311,18 +310,18 @@ type NewEventRequest struct {
 }
 
 func CalendarConflictCheck(startTime time.Time, endTime time.Time) error {
-	srv, calendarId := getService()	
+	srv, calendarId := getService()
 	conflictCheck, err := calendar.NewEventsService(srv).List(calendarId).
-	TimeMin(startTime.Format(time.RFC3339)).
-	TimeMax(endTime.Format(time.RFC3339)).
-	SingleEvents(true).
-	OrderBy("startTime").
-	Do()
+		TimeMin(startTime.Format(time.RFC3339)).
+		TimeMax(endTime.Format(time.RFC3339)).
+		SingleEvents(true).
+		OrderBy("startTime").
+		Do()
 
 	if err != nil {
-		return err;
+		return err
 	}
-	
+
 	if len(conflictCheck.Items) > 0 {
 		return errors.New("slot is busy; please choose another slot")
 	}
@@ -360,10 +359,10 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			"error": "Time Slot is not found",
 		})
 	}
-	
+
 	endTime := startTime.Add(tsr.Duration * time.Second)
 	err = CalendarConflictCheck(startTime, endTime)
-	if (err != nil) {
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":  "Slot is busy",
 			"reason": err.Error(),
@@ -378,7 +377,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			DisplayName: eventRequest.Name,
 		},
 	)
-		
+
 	for _, a := range tsr.Attendees {
 		eventAttendees = append(eventAttendees, &calendar.EventAttendee{
 			Email:       a.Email,
@@ -398,7 +397,7 @@ func postCalendarEventHandler(c *fiber.Ctx) error {
 			DateTime: endTime.Format(time.RFC3339),
 			TimeZone: "Europe/Belgrade",
 		},
-		Attendees: eventAttendees,	
+		Attendees: eventAttendees,
 		ConferenceData: &calendar.ConferenceData{
 			CreateRequest: &calendar.CreateConferenceRequest{
 				RequestId: uuid.New().String(),

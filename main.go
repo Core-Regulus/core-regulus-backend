@@ -21,5 +21,5 @@ func main() {
 	calendar.InitRoutes(app)
 	user.InitRoutes(app)
 
-	log.Fatal(app.Listen(":5001"))
+	log.Fatal(app.Listen(":5000"))
 }
