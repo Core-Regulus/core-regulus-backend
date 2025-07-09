@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type InAuthRequest struct {
@@ -24,6 +25,14 @@ type ErrorResponse struct {
 	Value       any
 	Tag         string
 }
+
+type UserData struct {
+	Name  string `json:"name"`
+	Id    string `json:"id"`
+	Email string `json:"email"`
+}
+
+var secretKey = []byte("SecretKey")
 
 func postUserAuthHandler(c *fiber.Ctx) error {
 	var authReq InAuthRequest
@@ -45,14 +54,27 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(validationErrors)
 	}
-	var jsonData any
 	pool := db.Connect()
 	ctx := context.Background()
-	err := pool.QueryRow(ctx, "select users.set_user($1)", authReq).Scan(&jsonData)
+	var user UserData
+	err := pool.QueryRow(ctx, "select users.set_user($1)", authReq).Scan(&user)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err})
 	}
-	return c.Status(201).JSON(fiber.Map{"status": "OK"})
+
+	claims := &jwt.MapClaims{
+		"user":  user.Name,
+		"email": user.Email,
+		"id":    user.Id,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Cannot create jwt token",
+		})
+	}
+	return c.Status(201).JSON(fiber.Map{"status": "OK", "token": tokenString})
 }
 
 func InitRoutes(app *fiber.App) {
