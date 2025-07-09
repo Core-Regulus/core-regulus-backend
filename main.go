@@ -3,6 +3,7 @@ package main
 import (
 	"core-regulus-backend/internal/calendar"
 	"core-regulus-backend/internal/db"
+	"core-regulus-backend/internal/user"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,6 +19,7 @@ func main() {
 	}))
 	db.Connect()
 	calendar.InitRoutes(app)
+	user.InitRoutes(app)
 
 	log.Fatal(app.Listen(":5000"))
 }
