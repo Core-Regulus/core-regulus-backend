@@ -10,8 +10,10 @@ import (
 )
 
 type InAuthRequest struct {
-	Name  string `json:"username" validate:"required,min=3,max=20"`
+	Name  string `json:"name" validate:"required,min=3,max=20"`
 	Email string `json:"email" validate:"required,email"`
+	Description string `json:"description"`
+	Agent string `json:"userAgent"`
 }
 
 func validateUser(user InAuthRequest) error {
