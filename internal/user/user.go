@@ -12,8 +12,8 @@ import (
 )
 
 type InAuthRequest struct {
-	Name  string `json:"name" validate:"required,min=3,max=20"`
-	Email string `json:"email" validate:"required,email"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 	Description string `json:"description"`
 	Agent string `json:"userAgent"`
 	Id string `json:"id"`

@@ -56,4 +56,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+select * from users.users;
+
 
