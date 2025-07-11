@@ -13,6 +13,8 @@ services:
       - DB_NAME
       - DB_USER
       - DB_PASSWORD
+      - JWT_PRIVATE_KEY
+      - JWT_PUBLIC_KEY
 networks:
   shared_net:
     external: true

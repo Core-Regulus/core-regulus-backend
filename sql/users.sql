@@ -21,7 +21,14 @@ CREATE OR REPLACE FUNCTION users.set_user(user_data json)
 RETURNS json AS $$
 DECLARE 
     res json;
+		l_id uuid;
+		ls_id text;
 BEGIN
+ 		ls_id := user_data->>'id';
+		if (ls_id = '') then
+			ls_id := null;
+		end if;		
+		l_id := coalesce(ls_id::uuid, gen_random_uuid());
     INSERT INTO users.users (
 				id,
         email,
@@ -30,7 +37,7 @@ BEGIN
 				description
     )
     VALUES (
-				coalesce((user_data->>'id')::uuid, gen_random_uuid()),
+				l_id,
         user_data->>'email',
         user_data->>'userAgent',
         user_data->>'name',
@@ -54,10 +61,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-select users.set_user('{  
-	"name": "Test",
-	"email": "test@test.com",
-	"userAgent": "Test Agent"
-}')
-
+truncate users.users;
+select * from users.users;
 

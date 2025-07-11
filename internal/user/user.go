@@ -3,10 +3,12 @@ package user
 import (
 	"context"
 	"core-regulus-backend/internal/db"
+	"core-regulus-backend/internal/token"
+	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type InAuthRequest struct {
@@ -14,6 +16,7 @@ type InAuthRequest struct {
 	Email string `json:"email" validate:"required,email"`
 	Description string `json:"description"`
 	Agent string `json:"userAgent"`
+	Id string `json:"id"`
 }
 
 func validateUser(user InAuthRequest) error {
@@ -28,13 +31,39 @@ type ErrorResponse struct {
 	Tag         string
 }
 
-type UserData struct {
-	Name  string `json:"name"`
-	Id    string `json:"id"`
-	Email string `json:"email"`
+func removePrefix(data string, prefix string) string {	
+	if after, ok :=strings.CutPrefix(data, prefix); ok  {
+		return after	
+	}
+	if after, ok :=strings.CutPrefix(data, strings.ToLower(prefix)); ok  {
+		return after	
+	}
+
+	return ""	
 }
 
-var secretKey = []byte("SecretKey")
+func getBearerTokenString(c *fiber.Ctx) (string, error) {
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("missing Authorization header")
+	}
+
+	val := removePrefix(authHeader, "Bearer ")
+			
+	if (val == "") {
+		return "", fmt.Errorf("invalid Authorization header format")
+	}
+
+	return val, nil
+}
+
+func getBearerToken(c *fiber.Ctx) (*token.UserTokenData, error) {
+	tokenString, err := getBearerTokenString(c)
+	if (err != nil) {
+		return nil, err
+	}
+	return token.ValidateJWT(tokenString)			
+}
 
 func postUserAuthHandler(c *fiber.Ctx) error {
 	var authReq InAuthRequest
@@ -56,21 +85,23 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(validationErrors)
 	}
+
+	tokenData, _ := getBearerToken(c)
+	if (tokenData != nil) {
+		authReq.Id = tokenData.Id
+	} else {
+		authReq.Id = ""
+	}
+	
 	pool := db.Connect()
 	ctx := context.Background()
-	var user UserData
+	var user token.UserTokenData
 	err := pool.QueryRow(ctx, "select users.set_user($1)", authReq).Scan(&user)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err})
 	}
-
-	claims := &jwt.MapClaims{
-		"user":  user.Name,
-		"email": user.Email,
-		"id":    user.Id,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(secretKey)
+		
+	tokenString,err := token.GenerateJWT(user)	
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Cannot create jwt token",

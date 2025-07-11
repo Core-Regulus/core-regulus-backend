@@ -1,12 +1,15 @@
 package config
 
-import (	
+import (
+	"crypto/rsa"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"github.com/joho/godotenv"	
+
+	"github.com/golang-jwt/jwt"
+	"github.com/joho/godotenv"
 )
 
 type SSHConfig struct {
@@ -14,6 +17,11 @@ type SSHConfig struct {
 	Host string
 	Port int
 	User string
+}
+
+type JWTConfig struct {
+	PrivateKey *rsa.PrivateKey
+	PublicKey *rsa.PublicKey
 }
 
 type DatabaseConfig struct {
@@ -28,6 +36,7 @@ type Config struct {
 	Environment string
 	SSH SSHConfig
 	Database DatabaseConfig
+	JWT JWTConfig
 }
 
 func (c Config) IsLocal() bool {
@@ -60,6 +69,22 @@ func loadDatabaseConfig() {
 	cfg.Database.Host = mustEnv("DB_HOST")
 }
 
+func loadJWTConfig() {
+	privateKey := strings.ReplaceAll(mustEnv("JWT_PRIVATE_KEY"), `\n`, "\n")
+	publicKey := strings.ReplaceAll(mustEnv("JWT_PUBLIC_KEY"), `\n`, "\n")
+
+	var privateKeyErr error
+	cfg.JWT.PrivateKey, privateKeyErr = jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKey))
+	if privateKeyErr != nil {
+		log.Fatalf("Can't decode private key %v", privateKeyErr)
+	}
+	var publicKeyErr error
+	cfg.JWT.PublicKey, publicKeyErr = jwt.ParseRSAPublicKeyFromPEM([]byte(publicKey))
+	if publicKeyErr != nil {
+		log.Fatalf("Can't decode public key %v", publicKeyErr)
+	}			
+}
+
 func loadConfig() {
 	cfg.Environment = getEnvironment();
 	if (cfg.IsLocal()) {
@@ -67,6 +92,7 @@ func loadConfig() {
 		loadSSHConfig()		
 	}
 	loadDatabaseConfig()			
+	loadJWTConfig()
 }
 
 func Get() *Config {
