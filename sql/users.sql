@@ -20,7 +20,7 @@ DECLARE
 		l_name text;
 		l_description text;
 BEGIN
-		l_id := shared.set_null_if_empty(user_data->>'id')::uuid;
+		l_id := coalesce(shared.set_null_if_empty(user_data->>'id')::uuid, gen_random_uuid());
     l_email = shared.set_null_if_empty(user_data->>'email');
     l_user_agent = shared.set_null_if_empty(user_data->>'userAgent');
     l_description = shared.set_null_if_empty(user_data->>'description');
@@ -56,6 +56,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
+
 select * from users.users;
 
-
+alter table users.users add column country text;

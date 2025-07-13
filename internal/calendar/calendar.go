@@ -288,6 +288,10 @@ func postCalendarDaysHandler(c *fiber.Ctx) error {
 
 func checkTimeSlot(busySlots []FreeSlot, start, end time.Time) bool {
 	for _, tb := range busySlots {
+		if start.Equal(tb.TimeStart) || start.Equal(tb.TimeEnd) {
+			return true
+		}
+		
 		if start.After(tb.TimeStart) && start.Before(tb.TimeEnd) {
 			return true
 		}
