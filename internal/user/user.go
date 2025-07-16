@@ -123,7 +123,7 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 			"error": "Cannot create jwt token",
 		})
 	}
-	return c.Status(201).JSON(fiber.Map{"status": "OK", "token": tokenString, "user": authReq})
+	return c.Status(201).JSON(fiber.Map{"status": "OK", "token": tokenString})
 }
 
 func InitRoutes(app *fiber.App) {
