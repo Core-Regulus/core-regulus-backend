@@ -12,11 +12,13 @@ import (
 )
 
 type InAuthRequest struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
 	Description string `json:"description"`
-	Agent string `json:"userAgent"`
-	Id string `json:"id"`
+	Agent       string `json:"userAgent"`
+	Id          string `json:"id"`
+	Country     string `json:"country,omitempty"`
+	IpAddress   string `json:"ip_address,omitempty"`
 }
 
 func validateUser(user InAuthRequest) error {
@@ -31,15 +33,15 @@ type ErrorResponse struct {
 	Tag         string
 }
 
-func removePrefix(data string, prefix string) string {	
-	if after, ok :=strings.CutPrefix(data, prefix); ok  {
-		return after	
+func removePrefix(data string, prefix string) string {
+	if after, ok := strings.CutPrefix(data, prefix); ok {
+		return after
 	}
-	if after, ok :=strings.CutPrefix(data, strings.ToLower(prefix)); ok  {
-		return after	
+	if after, ok := strings.CutPrefix(data, strings.ToLower(prefix)); ok {
+		return after
 	}
 
-	return ""	
+	return ""
 }
 
 func getBearerTokenString(c *fiber.Ctx) (string, error) {
@@ -49,8 +51,8 @@ func getBearerTokenString(c *fiber.Ctx) (string, error) {
 	}
 
 	val := removePrefix(authHeader, "Bearer ")
-			
-	if (val == "") {
+
+	if val == "" {
 		return "", fmt.Errorf("invalid Authorization header format")
 	}
 
@@ -59,10 +61,10 @@ func getBearerTokenString(c *fiber.Ctx) (string, error) {
 
 func getBearerToken(c *fiber.Ctx) (*token.UserTokenData, error) {
 	tokenString, err := getBearerTokenString(c)
-	if (err != nil) {
+	if err != nil {
 		return nil, err
 	}
-	return token.ValidateJWT(tokenString)			
+	return token.ValidateJWT(tokenString)
 }
 
 func postUserAuthHandler(c *fiber.Ctx) error {
@@ -72,6 +74,20 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
+	}
+
+	headers := c.GetReqHeaders()
+	userAgent, ok := headers["User-Agent"]
+	if ok {
+		authReq.Agent = userAgent[0]
+	}
+	country, ok := headers["Cf-Ipcountry"]
+	if ok {
+		authReq.Country = country[0]
+	}
+	ip, ok := headers["X-Forwarded-For"]
+	if ok {
+		authReq.IpAddress = ip[0]
 	}
 	if errs := validateUser(authReq); errs != nil {
 		validationErrors := []ErrorResponse{}
@@ -87,12 +103,12 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 	}
 
 	tokenData, _ := getBearerToken(c)
-	if (tokenData != nil) {
+	if tokenData != nil {
 		authReq.Id = tokenData.Id
 	} else {
 		authReq.Id = ""
 	}
-	
+
 	pool := db.Connect()
 	ctx := context.Background()
 	var user token.UserTokenData
@@ -100,14 +116,14 @@ func postUserAuthHandler(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err})
 	}
-		
-	tokenString,err := token.GenerateJWT(user)	
+
+	tokenString, err := token.GenerateJWT(user)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Cannot create jwt token",
 		})
 	}
-	return c.Status(201).JSON(fiber.Map{"status": "OK", "token": tokenString})
+	return c.Status(201).JSON(fiber.Map{"status": "OK", "token": tokenString, "user": authReq})
 }
 
 func InitRoutes(app *fiber.App) {
